@@ -32,6 +32,7 @@ seirs_comprehensive_model <- function(time, state, parameters) {
       new_quarantined_old <- 0
     }
     
+    # ODEs for young compartment
     dS_young <- birth_rate * total_pop - beta_young * S_young * (I_young + I_old + kappa * C_young + kappa * C_old) - death_rate * S_young + delta * R_young - vacc_young
     dE_young <- beta_young * S_young * (I_young + I_old + kappa * C_young + kappa * C_old) - sigma * E_young - death_rate * E_young
     dI_young <- (1-p) * sigma * E_young - gamma * I_young - death_rate * I_young - new_quarantined_young
@@ -39,6 +40,7 @@ seirs_comprehensive_model <- function(time, state, parameters) {
     dQ_young <- new_quarantined_young - gamma * Q_young - death_rate * Q_young
     dC_young <- p * sigma * E_young - gamma * C_young - death_rate * C_young
     
+    # ODEs for old compartment
     dS_old <- - beta_old * S_old * (I_young + I_old + kappa * C_young + kappa * C_old) - death_rate * S_old + delta * R_old - vacc_old
     dE_old <- beta_old * S_old * (I_young + I_old + kappa * C_young + kappa * C_old) - sigma * E_old - death_rate * E_old
     dI_old <- (1-p) * sigma * E_old - gamma * I_old - death_rate * I_old - new_quarantined_old
@@ -50,6 +52,7 @@ seirs_comprehensive_model <- function(time, state, parameters) {
                   dS_old, dE_old, dI_old, dR_old, dQ_old, dC_old)))
   })
 }
+
 
 # UI
 ui <- fluidPage(
@@ -132,8 +135,6 @@ ui <- fluidPage(
 )
 
 
-
-
 # Server
 server <- function(input, output, session) {
   observe({
@@ -146,19 +147,20 @@ server <- function(input, output, session) {
     }
   })
   
-parameters <- reactive({
-  validate(
-    need(input$vacc_start < input$vacc_end, "Vaccination start time must be less than end time"),
-    need(input$quarantine_start < input$quarantine_end, "Quarantine start time must be less than end time")
-  )
-  
-  c(
-    beta_young = input$beta_young, beta_old = input$beta_old, sigma = input$sigma, gamma = input$gamma, delta = input$delta,
-    birth_rate = input$birth_rate, death_rate = input$death_rate, vacc_rate = input$vacc_rate, vacc_start = input$vacc_start,
-    vacc_end = input$vacc_end, quarantine_rate = input$quarantine_rate, quarantine_start = input$quarantine_start,
-    quarantine_end = input$quarantine_end, kappa = input$kappa, p = input$p
-  )
-})
+  # Parameters
+  parameters <- reactive({
+    validate(
+      need(input$vacc_start < input$vacc_end, "Vaccination start time must be less than end time"),
+      need(input$quarantine_start < input$quarantine_end, "Quarantine start time must be less than end time")
+    )
+    
+    c(
+      beta_young = input$beta_young, beta_old = input$beta_old, sigma = input$sigma, gamma = input$gamma, delta = input$delta,
+      birth_rate = input$birth_rate, death_rate = input$death_rate, vacc_rate = input$vacc_rate, vacc_start = input$vacc_start,
+      vacc_end = input$vacc_end, quarantine_rate = input$quarantine_rate, quarantine_start = input$quarantine_start,
+      quarantine_end = input$quarantine_end, kappa = input$kappa, p = input$p
+    )
+  })
   
   output_data <- reactive({
     initial_state <- c(S_young = 50, E_young = 1, I_young = 0, R_young = 0, Q_young = 0, C_young = 0,
@@ -175,7 +177,7 @@ parameters <- reactive({
     })
   })
   
-  
+  # Theme
   theme_dynamic <- reactive({
     if (input$dark_mode) {
       theme_minimal(base_size = 15) +
@@ -213,6 +215,7 @@ parameters <- reactive({
     ggplotly(p)
   })
   
+  # Age plot
   output$age_plot <- renderPlotly({
     output_df <- as.data.frame(output_data())
     output_long <- reshape2::melt(output_df, id.vars = "time")
@@ -233,6 +236,7 @@ parameters <- reactive({
     ggplotly(p)
   })
   
+  # Compartment plot
   output$compartment_plot <- renderPlotly({
     output_df <- as.data.frame(output_data())
     output_long <- reshape2::melt(output_df, id.vars = "time")
@@ -253,37 +257,39 @@ parameters <- reactive({
     ggplotly(p)
   })
   
+  # Intervention plot
   output$intervention_plot <- renderPlotly({
     initial_state <- c(S_young = 50, E_young = 1, I_young = 0, R_young = 0, Q_young = 0, C_young = 0,
                        S_old = 49, E_old = 0, I_old = 0, R_old = 0, Q_old = 0, C_old = 0)
     times <- seq(0, 100, by = 1)
     
-    # Calculate the epidemic dynamics without quarantine and vaccination
-    parameters_no_intervention <- parameters()
-    parameters_no_intervention["quarantine_rate"] <- 0
-    parameters_no_intervention["vacc_rate"] <- 0
-    output_no_intervention <- ode(y = initial_state, times = times, func = seirs_comprehensive_model, parms = parameters_no_intervention)
+
+    # Calculate the epidemic dynamics without vaccination
+    parameters_no_vaccination <- parameters()
+    parameters_no_vaccination["vacc_rate"] <- 0
+    output_no_vaccination <- ode(y = initial_state, times = times, func = seirs_comprehensive_model, parms = parameters_no_vaccination)
     
-    # Calculate the epidemic dynamics with current parameters
-    output_intervention <- ode(y = initial_state, times = times, func = seirs_comprehensive_model, parms = parameters())
+    # Calculate the epidemic dynamics with vaccination
+    output_vaccination <- ode(y = initial_state, times = times, func = seirs_comprehensive_model, parms = parameters())
     
     # Convert to data frames
-    output_no_intervention_df <- as.data.frame(output_no_intervention)
-    output_intervention_df <- as.data.frame(output_intervention)
+    output_no_vaccination_df <- as.data.frame(output_no_vaccination)
+    output_vaccination_df <- as.data.frame(output_vaccination)
     
     # Calculate cumulative infections for both scenarios
-    output_no_intervention_df$Cumulative_Infected_no_intervention <- cumsum(rowSums(output_no_intervention_df[, c("I_young", "I_old")]))
-    output_intervention_df$Cumulative_Infected_intervention <- cumsum(rowSums(output_intervention_df[, c("I_young", "I_old")]))
+    output_no_vaccination_df$Cumulative_Infected_no_vaccination <- cumsum(rowSums(output_no_vaccination_df[, c("I_young", "I_old")]))
+    output_vaccination_df$Cumulative_Infected_vaccination <- cumsum(rowSums(output_vaccination_df[, c("I_young", "I_old")]))
     
     # Calculate cumulative percentage decrease in infections
-    percentage_prevented_intervention <- (output_no_intervention_df$Cumulative_Infected_no_intervention - output_intervention_df$Cumulative_Infected_intervention) / output_no_intervention_df$Cumulative_Infected_no_intervention * 100
+    percentage_prevented_vaccination <- (output_no_vaccination_df$Cumulative_Infected_no_vaccination - output_vaccination_df$Cumulative_Infected_vaccination) / output_no_vaccination_df$Cumulative_Infected_no_vaccination * 100
     
     # Combine data for plotting
-    df_prevented_intervention <- data.frame(
+    df_prevented_vaccination <- data.frame(
       time = times,
-      percentage_prevented = percentage_prevented_intervention,
+      percentage_prevented = percentage_prevented_vaccination,
       Scenario = "Vaccination"
     )
+    
     
     # Calculate the epidemic dynamics without quarantine
     parameters_no_quarantine <- parameters()
@@ -312,7 +318,7 @@ parameters <- reactive({
     )
     
     # Combine both datasets
-    df_prevented_combined <- rbind(df_prevented_intervention, df_prevented_quarantine)
+    df_prevented_combined <- rbind(df_prevented_vaccination, df_prevented_quarantine)
     
     # Plot cumulative percentage decrease in infections over time for both scenarios
     p <- ggplot(df_prevented_combined, aes(x = time, y = percentage_prevented, color = Scenario)) +
@@ -330,4 +336,3 @@ parameters <- reactive({
 
 
 shinyApp(ui = ui, server = server)
-
