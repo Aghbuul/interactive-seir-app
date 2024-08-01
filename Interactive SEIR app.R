@@ -1,3 +1,4 @@
+# Libraries
 library(shiny)
 library(deSolve)
 library(ggplot2)
@@ -196,6 +197,8 @@ server <- function(input, output, session) {
     }
   })
   
+
+  # Simple Plot (Not currently in use)
   output$simple_plot <- renderPlotly({
     output_df <- as.data.frame(output_data())
     output_long <- reshape2::melt(output_df, id.vars = "time")
@@ -215,6 +218,7 @@ server <- function(input, output, session) {
     ggplotly(p)
   })
   
+
   # Age plot
   output$age_plot <- renderPlotly({
     output_df <- as.data.frame(output_data())
@@ -236,6 +240,7 @@ server <- function(input, output, session) {
     ggplotly(p)
   })
   
+
   # Compartment plot
   output$compartment_plot <- renderPlotly({
     output_df <- as.data.frame(output_data())
@@ -257,13 +262,13 @@ server <- function(input, output, session) {
     ggplotly(p)
   })
   
+
   # Intervention plot
   output$intervention_plot <- renderPlotly({
     initial_state <- c(S_young = 50, E_young = 1, I_young = 0, R_young = 0, Q_young = 0, C_young = 0,
                        S_old = 49, E_old = 0, I_old = 0, R_old = 0, Q_old = 0, C_old = 0)
     times <- seq(0, 100, by = 1)
     
-
     # Calculate the epidemic dynamics without vaccination
     parameters_no_vaccination <- parameters()
     parameters_no_vaccination["vacc_rate"] <- 0
