@@ -1,0 +1,4 @@
+linters: with_defaults(
+  object_usage_linter = NULL,  # Disables the object_usage_linter
+  line_length_linter = line_length_linter(120)  # Sets the maximum line length to 120 characters
+)
